@@ -1,0 +1,43 @@
+{
+  "name": "codexbar-extension",
+  "version": "1.0.0",
+  "description": "CodexBar GNOME Shell extension — concentric-ring AI subscription usage indicator (TypeScript).",
+  "type": "module",
+  "private": true,
+  "license": "GPL-2.0-or-later",
+  "scripts": {
+    "build": "tsc",
+    "schemas": "glib-compile-schemas schemas/",
+    "pack": "npm run build && npm run schemas",
+    "deploy": "npm run pack && node scripts/deploy.mjs",
+    "check": "node --check dist/extension.js && node --check dist/prefs.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@girs/gnome-shell": "46.0.2",
+    "@girs/gjs": "4.0.0-rc.17",
+    "@girs/gio-2.0": "2.88.0-4.0.0-rc.17",
+    "@girs/glib-2.0": "2.88.0-4.0.0-rc.17",
+    "@girs/gobject-2.0": "2.88.0-4.0.0-rc.17",
+    "@girs/clutter-14": "14.0.0-4.0.0-rc.17",
+    "@girs/st-14": "14.0.0-4.0.0-rc.17",
+    "@girs/adw-1": "1.10.0-4.0.0-rc.17",
+    "@girs/gtk-4.0": "4.23.0-4.0.0-rc.17",
+    "@girs/secret-1": "0.21.7-4.0.0-rc.17",
+    "@girs/soup-3.0": "3.6.6-4.0.0-rc.17",
+    "@girs/cairo-1.0": "1.0.0-4.0.0-rc.17"
+  },
+  "overrides": {
+    "@girs/gjs": "4.0.0-rc.17",
+    "@girs/gio-2.0": "2.88.0-4.0.0-rc.17",
+    "@girs/glib-2.0": "2.88.0-4.0.0-rc.17",
+    "@girs/gobject-2.0": "2.88.0-4.0.0-rc.17",
+    "@girs/cairo-1.0": "1.0.0-4.0.0-rc.17",
+    "@girs/clutter-14": "14.0.0-4.0.0-rc.17",
+    "@girs/st-14": "14.0.0-4.0.0-rc.17",
+    "@girs/adw-1": "1.10.0-4.0.0-rc.17",
+    "@girs/gtk-4.0": "4.23.0-4.0.0-rc.17",
+    "@girs/secret-1": "0.21.7-4.0.0-rc.17",
+    "@girs/soup-3.0": "3.6.6-4.0.0-rc.17"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "uuid": "codexbar-pane@nothingfancy.ai",
+  "name": "CodexBar Pane",
+  "description": "AI subscription usage in the GNOME panel: every provider as a concentric-ring glyph (outer = 5-hour window, inner = weekly), with a per-provider dropdown, critical pulse and hover tooltips. Wraps the codexbar CLI by @steipete.",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "url": "https://nothingfancy.ai",
+  "settings-schema": "org.gnome.shell.extensions.codexbar-pane",
+  "gettext-domain": "codexbar-pane"
+}

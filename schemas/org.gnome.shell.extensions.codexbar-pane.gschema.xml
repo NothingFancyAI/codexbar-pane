@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <enum id="org.gnome.shell.extensions.codexbar-pane.DisplayMode">
+    <value nick="used" value="0"/>
+    <value nick="remaining" value="1"/>
+  </enum>
+
+  <schema id="org.gnome.shell.extensions.codexbar-pane" path="/org/gnome/shell/extensions/codexbar-pane/">
+    <key name="refresh-interval" type="i">
+      <default>15</default>
+      <summary>Refresh interval in minutes</summary>
+      <description>Global fallback poll interval. Per-provider pollSeconds (stored in the providers JSON) overrides this when present.</description>
+    </key>
+    <key name="providers" type="s">
+      <default>'[{"id": "gemini", "name": "Gemini", "command": "codexbar --provider gemini --source api --format json", "useApi": false, "warnPct": 65, "criticalPct": 85, "notify": true}]'</default>
+      <summary>JSON string of configured AI providers</summary>
+      <description>Free-form JSON array of provider objects: {id, name, command, useApi, pollSeconds?, warnPct?, criticalPct?, notify?}.</description>
+    </key>
+    <key name="display-mode" enum="org.gnome.shell.extensions.codexbar-pane.DisplayMode">
+      <default>'used'</default>
+      <summary>Whether to show used or remaining quota in the numeric/time text</summary>
+    </key>
+    <key name="first-run" type="b">
+      <default>true</default>
+      <summary>Whether this is the first time the extension is run</summary>
+    </key>
+  </schema>
+</schemalist>

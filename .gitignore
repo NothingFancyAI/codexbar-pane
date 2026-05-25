@@ -1,0 +1,9 @@
+node_modules/
+dist/
+schemas/gschemas.compiled
+*.shell-extension.zip
+
+# Design handoff bundle and reference implementation (not part of the source)
+codexbar-extension.zip
+codexbar-gnome/
+_design_extract/

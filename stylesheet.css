@@ -1,0 +1,161 @@
+/* CodexBar — concentric-rings redesign. GNOME-native dark styling;
+   structure + tone colors only (green/amber/red), no beige paper look. */
+
+/* ---- panel ---- */
+.codexbar-panel-glyphs {
+    spacing: 2px;
+    padding: 0 4px;
+}
+
+/* ---- dropdown shell ---- */
+.codexbar-popup {
+    min-width: 360px;
+}
+
+.codexbar-header {
+    padding: 6px 4px 10px 4px;
+    spacing: 6px;
+}
+
+.codexbar-header-title {
+    font-weight: bold;
+    font-size: 1.05em;
+}
+
+.codexbar-header-button {
+    padding: 4px;
+    border-radius: 6px;
+}
+
+.codexbar-header-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.codexbar-legend {
+    font-size: 0.72em;
+    font-feature-settings: "tnum";
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 1px;
+}
+
+/* ---- provider row ---- */
+.codexbar-row {
+    spacing: 12px;
+    padding: 8px 4px;
+}
+
+.codexbar-row-glyph {
+    width: 40px;
+}
+
+.codexbar-row-name {
+    font-weight: bold;
+    font-size: 0.95em;
+}
+
+.codexbar-row-pct {
+    font-feature-settings: "tnum";
+    font-size: 0.72em;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.codexbar-window-label {
+    font-feature-settings: "tnum";
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.codexbar-window-label-primary {
+    font-size: 0.7em;
+}
+
+.codexbar-window-label-secondary {
+    font-size: 0.62em;
+}
+
+/* progress bars: a track with a colored fill child (width set in code) */
+.codexbar-bar-track {
+    background-color: rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+}
+
+.codexbar-bar-track-primary {
+    height: 9px;
+    min-width: 150px;
+}
+
+.codexbar-bar-track-secondary {
+    height: 4px;
+    min-width: 120px;
+}
+
+.codexbar-bar-fill {
+    border-radius: 999px;
+}
+
+.codexbar-left {
+    font-feature-settings: "tnum";
+    font-weight: bold;
+    text-align: right;
+}
+
+.codexbar-left-primary {
+    font-size: 0.82em;
+}
+
+.codexbar-left-secondary {
+    font-size: 0.72em;
+    font-weight: normal;
+}
+
+.codexbar-row-secondary {
+    padding-left: 14px;
+}
+
+.codexbar-row-status {
+    font-size: 0.8em;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.codexbar-row-status-error {
+    color: #d76b5d;
+}
+
+/* dashed separator between rows */
+.codexbar-sep {
+    height: 1px;
+    margin: 2px 0;
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.codexbar-empty {
+    padding: 12px 4px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* ---- floating tooltip ---- */
+.codexbar-tooltip {
+    background-color: rgba(20, 20, 22, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 8px 12px;
+    spacing: 3px;
+    box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.45);
+}
+
+.codexbar-tooltip-title {
+    font-weight: bold;
+    font-size: 0.9em;
+    padding-bottom: 2px;
+}
+
+.codexbar-tooltip-row {
+    font-size: 0.82em;
+    spacing: 14px;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.codexbar-tooltip-row-week {
+    font-size: 0.76em;
+    color: rgba(255, 255, 255, 0.6);
+}

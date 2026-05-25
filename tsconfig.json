@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noImplicitOverride": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": false,
+    "sourceMap": false,
+    "types": [
+      "@girs/gjs",
+      "@girs/gjs/dom",
+      "@girs/gnome-shell/ambient",
+      "@girs/secret-1/ambient",
+      "@girs/soup-3.0/ambient"
+    ]
+  },
+  "include": ["src/**/*.ts"]
+}
