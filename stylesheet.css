@@ -7,6 +7,11 @@
     padding: 0 4px;
 }
 
+/* placeholder icon shown when no providers are configured */
+.codexbar-default-icon {
+    opacity: 0.85;
+}
+
 /* ---- dropdown shell ---- */
 .codexbar-popup {
     min-width: 360px;

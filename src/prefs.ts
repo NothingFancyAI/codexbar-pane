@@ -6,10 +6,8 @@ import Gtk from 'gi://Gtk';
 import Adw from 'gi://Adw';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-import {storeToken, loadToken} from './lib/secret.js';
 import {
-    PREDEFINED_PROVIDERS,
-    ProviderDefault,
+    AVAILABLE_ICONS,
     DEFAULT_WARN_PCT,
     DEFAULT_CRITICAL_PCT,
 } from './lib/providers.js';
@@ -18,25 +16,36 @@ interface StoredProvider {
     id: string;
     name: string;
     command: string;
-    useApi: boolean;
+    icon?: string;
     pollSeconds?: number;
     warnPct?: number;
     criticalPct?: number;
     notify?: boolean;
 }
 
+// Seed used to build a provider card (a freshly added or restored provider).
+interface ProviderSeed {
+    id: string;
+    name: string;
+    defaultCommand: string;
+    icon?: string;
+}
+
 interface ProviderRowRefs {
     id: string;
-    useApi: boolean;
     row: Adw.ExpanderRow;
     nameEntry: Adw.EntryRow;
-    commandEntry: Adw.EntryRow | null;
-    tokenEntry: Gtk.PasswordEntry | null;
+    commandEntry: Adw.EntryRow;
+    getIcon: () => string;
     pollSpin: Adw.SpinRow;
     warnSpin: Adw.SpinRow;
     criticalSpin: Adw.SpinRow;
     notifySwitch: Adw.SwitchRow;
 }
+
+// Icon-selector model: "None" plus each bundled icon.
+const ICON_CHOICES = ['', ...AVAILABLE_ICONS.map(i => i.file)];
+const ICON_LABELS = ['None', ...AVAILABLE_ICONS.map(i => i.label)];
 
 export default class CodexBarPreferences extends ExtensionPreferences {
     override fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
@@ -48,7 +57,7 @@ export default class CodexBarPreferences extends ExtensionPreferences {
         window.add(page);
 
         page.add(this._buildGeneralGroup(settings));
-        page.add(this._buildProvidersGroup(settings, window));
+        page.add(this._buildProvidersGroup(settings, window, `${this.path}/icons`));
         page.add(this._buildMaintenanceGroup(settings));
         page.add(this._buildAboutGroup());
 
@@ -85,10 +94,14 @@ export default class CodexBarPreferences extends ExtensionPreferences {
         return group;
     }
 
-    private _buildProvidersGroup(settings: Gio.Settings, window: Adw.PreferencesWindow): Adw.PreferencesGroup {
+    private _buildProvidersGroup(
+        settings: Gio.Settings,
+        window: Adw.PreferencesWindow,
+        iconsDir: string,
+    ): Adw.PreferencesGroup {
         const group = new Adw.PreferencesGroup({
             title: _('AI Providers'),
-            description: _('Enable providers. Codex uses the direct API; others call codexbar-cli.'),
+            description: _('Each provider runs a codexbar CLI command and reports its usage.'),
         });
 
         const rows: ProviderRowRefs[] = [];
@@ -107,27 +120,21 @@ export default class CodexBarPreferences extends ExtensionPreferences {
             for (const r of rows) {
                 if (!r.row.enable_expansion)
                     continue;
-                const name = r.nameEntry.get_text();
                 out.push({
                     id: r.id,
-                    name,
-                    command: r.commandEntry ? r.commandEntry.get_text() : '',
-                    useApi: r.useApi,
+                    name: r.nameEntry.get_text(),
+                    command: r.commandEntry.get_text(),
+                    icon: r.getIcon() || undefined,
                     pollSeconds: Math.round(r.pollSpin.get_value()) || undefined,
                     warnPct: Math.round(r.warnSpin.get_value()),
                     criticalPct: Math.round(r.criticalSpin.get_value()),
                     notify: r.notifySwitch.get_active(),
                 });
-                if (r.useApi && r.tokenEntry) {
-                    const token = r.tokenEntry.get_text().trim();
-                    if (token)
-                        storeToken(r.id, token);
-                }
             }
             settings.set_string('providers', JSON.stringify(out));
         };
 
-        const makeCard = (info: ProviderDefault, stored: StoredProvider | null): ProviderRowRefs => {
+        const makeCard = (info: ProviderSeed, stored: StoredProvider | null): ProviderRowRefs => {
             const enabled = stored !== null;
 
             const row = new Adw.ExpanderRow({
@@ -136,6 +143,18 @@ export default class CodexBarPreferences extends ExtensionPreferences {
                 enable_expansion: enabled,
                 expanded: enabled,
             });
+
+            // Icon shown to the left of the row title, reflecting the selection.
+            const initialIcon = stored?.icon ?? info.icon ?? '';
+            const iconImage = new Gtk.Image({pixel_size: 22});
+            const applyIconPreview = (file: string) => {
+                if (file)
+                    iconImage.set_from_file(`${iconsDir}/${file}`);
+                else
+                    iconImage.set_from_icon_name('application-x-executable-symbolic');
+            };
+            applyIconPreview(initialIcon);
+            row.add_prefix(iconImage);
 
             // Name.
             const nameEntry = new Adw.EntryRow({title: _('Name')});
@@ -146,33 +165,27 @@ export default class CodexBarPreferences extends ExtensionPreferences {
             });
             row.add_row(nameEntry);
 
-            // Command (CLI) or token (API).
-            let commandEntry: Adw.EntryRow | null = null;
-            let tokenEntry: Gtk.PasswordEntry | null = null;
-            if (info.useApi) {
-                tokenEntry = new Gtk.PasswordEntry({
-                    show_peek_icon: true,
-                    hexpand: true,
-                    text: loadToken(info.id) ?? '',
-                });
-                tokenEntry.connect('changed', () => {
-                    storeToken(info.id, tokenEntry!.get_text().trim());
-                    saveProviders();
-                });
-                const tokenRow = new Adw.ActionRow({
-                    title: _('Session cookies'),
-                    subtitle: _('Codex auth cookie (stored in the keyring)'),
-                });
-                tokenRow.add_suffix(tokenEntry);
-                tokenRow.set_activatable_widget(tokenEntry);
-                row.add_row(tokenRow);
-            } else {
-                commandEntry = new Adw.EntryRow({title: _('Command')});
-                commandEntry.add_css_class('monospace');
-                commandEntry.set_text(stored?.command ?? info.defaultCommand);
-                commandEntry.connect('changed', saveProviders);
-                row.add_row(commandEntry);
-            }
+            // Command (codexbar CLI invocation producing JSON usage).
+            const commandEntry = new Adw.EntryRow({title: _('Command')});
+            commandEntry.add_css_class('monospace');
+            commandEntry.set_text(stored?.command ?? info.defaultCommand);
+            commandEntry.connect('changed', saveProviders);
+            row.add_row(commandEntry);
+
+            // Icon selector (bundled logos + "None").
+            const iconRow = new Adw.ComboRow({
+                title: _('Icon'),
+                subtitle: _('Logo shown in the panel and dropdown'),
+                model: new Gtk.StringList({strings: ICON_LABELS}),
+            });
+            const initialIndex = Math.max(0, ICON_CHOICES.indexOf(initialIcon));
+            iconRow.set_selected(initialIndex);
+            iconRow.connect('notify::selected', () => {
+                applyIconPreview(ICON_CHOICES[iconRow.get_selected()] ?? '');
+                saveProviders();
+            });
+            row.add_row(iconRow);
+            const getIcon = () => ICON_CHOICES[iconRow.get_selected()] ?? '';
 
             // Poll every (seconds; 0 = use global).
             const pollSpin = new Adw.SpinRow({
@@ -229,11 +242,10 @@ export default class CodexBarPreferences extends ExtensionPreferences {
 
             return {
                 id: info.id,
-                useApi: info.useApi,
                 row,
                 nameEntry,
                 commandEntry,
-                tokenEntry,
+                getIcon,
                 pollSpin,
                 warnSpin,
                 criticalSpin,
@@ -241,35 +253,19 @@ export default class CodexBarPreferences extends ExtensionPreferences {
             };
         };
 
-        const seen = new Set<string>();
-
-        // Predefined providers (matched by id or name).
-        for (const info of PREDEFINED_PROVIDERS) {
-            const stored = active.find(p => p.id === info.id)
-                ?? active.find(p => p.name?.toLowerCase() === info.name.toLowerCase())
-                ?? null;
-            if (stored)
-                seen.add(stored.id);
-            const refs = makeCard(info, stored);
-            rows.push(refs);
-            group.add(refs.row);
-        }
-
-        // Custom providers from settings not matched above.
+        // Providers stored in settings (all user-added; no built-in presets).
         for (const p of active) {
-            if (seen.has(p.id))
-                continue;
             const refs = makeCard(
-                {id: p.id, name: p.name, useApi: !!p.useApi, defaultCommand: p.command ?? ''},
+                {id: p.id, name: p.name, defaultCommand: p.command ?? '', icon: p.icon},
                 p,
             );
             rows.push(refs);
             group.add(refs.row);
         }
 
-        // Add custom provider.
+        // Add a provider.
         const addRow = new Adw.ActionRow({
-            title: _('Add custom provider'),
+            title: _('Add provider'),
             subtitle: _('Name + a codexbar CLI command'),
         });
         const addBtn = new Gtk.Button({
@@ -300,15 +296,12 @@ export default class CodexBarPreferences extends ExtensionPreferences {
                 const cmd = cmdEntry.get_text().trim();
                 if (!name || !cmd)
                     return;
-                const info: ProviderDefault = {
+                const info: ProviderSeed = {
                     id: `custom-${Date.now()}`,
                     name,
-                    useApi: false,
                     defaultCommand: cmd,
                 };
-                const refs = makeCard(info, {
-                    id: info.id, name, command: cmd, useApi: false,
-                });
+                const refs = makeCard(info, {id: info.id, name, command: cmd});
                 rows.push(refs);
                 group.add(refs.row);
                 saveProviders();

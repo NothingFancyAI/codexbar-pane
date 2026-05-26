@@ -6,7 +6,8 @@ export interface ProviderConfig {
     id: string;
     name: string;
     command: string;
-    useApi: boolean;
+    // Bundled icon filename (see AVAILABLE_ICONS); '' / undefined = letter glyph.
+    icon?: string;
     // Optional per-provider overrides (free-form, stored in the providers JSON).
     pollSeconds?: number;
     warnPct?: number;
@@ -14,28 +15,29 @@ export interface ProviderConfig {
     notify?: boolean;
 }
 
-export interface ProviderDefault {
-    id: string;
-    name: string;
-    useApi: boolean;
-    defaultCommand: string;
-}
-
-// Carried over from the reference prefs.js.
-export const PREDEFINED_PROVIDERS: ProviderDefault[] = [
-    {id: 'codex', name: 'Codex', useApi: true, defaultCommand: ''},
-    {id: 'gemini', name: 'Gemini', useApi: false, defaultCommand: 'codexbar --provider gemini --source api --format json'},
-    {id: 'deepseek', name: 'DeepSeek', useApi: false, defaultCommand: 'codexbar --provider deepseek --source api --format json'},
-    {id: 'copilot', name: 'Copilot', useApi: false, defaultCommand: 'codexbar --provider copilot --source api --format json'},
-    {id: 'openrouter', name: 'OpenRouter', useApi: false, defaultCommand: 'codexbar --provider openrouter --source api --format json'},
-    {id: 'perplexity', name: 'Perplexity', useApi: false, defaultCommand: 'codexbar --provider perplexity --source api --format json'},
-    {id: 'mistral', name: 'Mistral', useApi: false, defaultCommand: 'codexbar --provider mistral --source api --format json'},
-];
-
 export const DEFAULT_WARN_PCT = 65;
 export const DEFAULT_CRITICAL_PCT = 85;
 
-// Map provider id (or normalized name) to a bundled logo svg under icons/.
+export interface IconOption {
+    file: string;
+    label: string;
+}
+
+// Bundled logo svgs under icons/, offered in the provider icon selector.
+export const AVAILABLE_ICONS: IconOption[] = [
+    {file: 'openai.svg', label: 'OpenAI'},
+    {file: 'gemini.svg', label: 'Gemini'},
+    {file: 'claude.svg', label: 'Claude'},
+    {file: 'copilot.svg', label: 'Copilot'},
+    {file: 'deepseek.svg', label: 'DeepSeek'},
+    {file: 'openrouter.svg', label: 'OpenRouter'},
+    {file: 'perplexity.svg', label: 'Perplexity'},
+    {file: 'mistral.svg', label: 'Mistral'},
+];
+
+const ICON_FILES = new Set(AVAILABLE_ICONS.map(i => i.file));
+
+// Fallback id/name → logo mapping for providers saved without an explicit icon.
 const LOGO_BY_ID: Record<string, string> = {
     codex: 'openai.svg',
     openai: 'openai.svg',
@@ -51,13 +53,16 @@ const LOGO_BY_ID: Record<string, string> = {
 
 /**
  * Return the bundled logo filename for a provider, or null if none matches.
- * Matched first by id, then by normalized (lowercased) name.
+ * Prefers the provider's explicitly chosen icon, then falls back to matching
+ * by id and finally by normalized (lowercased) name.
  */
-export function logoForProvider(id: string, name: string): string | null {
-    const byId = LOGO_BY_ID[id?.toLowerCase?.() ?? ''];
+export function logoForProvider(config: {id?: string; name?: string; icon?: string}): string | null {
+    if (config.icon && ICON_FILES.has(config.icon))
+        return config.icon;
+    const byId = LOGO_BY_ID[config.id?.toLowerCase?.() ?? ''];
     if (byId)
         return byId;
-    const byName = LOGO_BY_ID[(name ?? '').toLowerCase().trim()];
+    const byName = LOGO_BY_ID[(config.name ?? '').toLowerCase().trim()];
     return byName ?? null;
 }
 

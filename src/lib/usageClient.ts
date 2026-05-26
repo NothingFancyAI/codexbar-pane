@@ -1,21 +1,9 @@
-// Usage data client. Two sources, one normalized shape:
-//   • API providers (e.g. Codex) — HTTP via libsoup, ported from usageApi.js.
-//   • CLI providers — spawn the configured command (codexbar) and parse JSON,
-//     ported from the subprocess path in the reference extension.js.
-// Both feed the same recursive window discovery + normalization.
+// Usage data client. CLI providers spawn the configured command (codexbar)
+// and parse its JSON output, feeding a recursive window discovery +
+// normalization step that yields one normalized shape.
 
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import Soup from 'gi://Soup?version=3.0';
-
-const API_BASE_URL = 'https://chatgpt.com';
-const SUMMARY_ENDPOINT = '/backend-api/wham/usage';
-const ME_ENDPOINT = '/backend-api/me';
-const SESSION_ENDPOINT = '/api/auth/session';
-
-const USER_AGENT =
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 ' +
-    '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 // Common install locations for the codexbar CLI.
 const CLI_PATHS = [
@@ -58,143 +46,15 @@ interface RawWindow {
 }
 
 export class UsageApiError extends Error {
-    statusCode: number;
-    payload: unknown;
-
-    constructor(message: string, opts: {statusCode?: number; payload?: unknown} = {}) {
+    constructor(message: string) {
         super(message);
         this.name = 'UsageApiError';
-        this.statusCode = opts.statusCode ?? 0;
-        this.payload = opts.payload ?? null;
-    }
-
-    get isAuthError(): boolean {
-        return this.statusCode === 401 || this.statusCode === 403;
     }
 }
 
 export class UsageClient {
-    private _session: Soup.Session | null;
-
-    constructor() {
-        this._session = new Soup.Session();
-        this._session.timeout = 30;
-    }
-
     destroy(): void {
-        if (this._session) {
-            this._session.abort();
-            this._session = null;
-        }
-    }
-
-    // ---- API providers (Codex) -------------------------------------------
-
-    async fetchApi(cookies: string, cancellable: Gio.Cancellable): Promise<NormalizedUsage> {
-        let sessionData: any;
-        try {
-            sessionData = await this._getJson(SESSION_ENDPOINT, cookies, cancellable);
-        } catch (e) {
-            throw new UsageApiError(`Failed to retrieve access token: ${(e as Error).message}`);
-        }
-
-        if (!sessionData || !sessionData.accessToken) {
-            throw new UsageApiError(
-                'Failed to retrieve access token from session. Cookies might be invalid.',
-            );
-        }
-
-        const usagePayload: any = await this._getJsonWithAuth(
-            SUMMARY_ENDPOINT, sessionData.accessToken, cancellable,
-        );
-
-        if (!usagePayload.email) {
-            try {
-                const meData: any = await this._getJsonWithAuth(
-                    ME_ENDPOINT, sessionData.accessToken, cancellable,
-                );
-                if (meData?.email)
-                    usagePayload.email = meData.email;
-            } catch {
-                // Silent fallback — email is non-essential.
-            }
-        }
-
-        return this.normalizeSummary(usagePayload);
-    }
-
-    private async _getJson(path: string, cookies: string, cancellable: Gio.Cancellable): Promise<unknown> {
-        if (!cookies)
-            throw new UsageApiError('Authentication cookies are required.');
-
-        const message = Soup.Message.new('GET', `${API_BASE_URL}${path}`);
-        const headers = message.get_request_headers();
-        headers.append('Accept', 'application/json');
-        headers.append('Cookie', cookies);
-        headers.append('Referer', 'https://chatgpt.com/');
-        headers.append('User-Agent', USER_AGENT);
-
-        const match = cookies.match(/oai-did=([^;]+)/);
-        if (match)
-            headers.append('oai-device-id', match[1]);
-
-        return this._executeRequest(message, cancellable);
-    }
-
-    private async _getJsonWithAuth(path: string, accessToken: string, cancellable: Gio.Cancellable): Promise<unknown> {
-        const message = Soup.Message.new('GET', `${API_BASE_URL}${path}`);
-        const headers = message.get_request_headers();
-        headers.append('Accept', 'application/json');
-        headers.append('Authorization', `Bearer ${accessToken}`);
-        headers.append('Referer', 'https://chatgpt.com/');
-        headers.append('User-Agent', USER_AGENT);
-
-        return this._executeRequest(message, cancellable);
-    }
-
-    private async _executeRequest(message: Soup.Message, cancellable: Gio.Cancellable): Promise<unknown> {
-        const session = this._session;
-        if (!session)
-            throw new UsageApiError('Client destroyed.');
-
-        let bytes: GLib.Bytes;
-        try {
-            bytes = await new Promise<GLib.Bytes>((resolve, reject) => {
-                session.send_and_read_async(
-                    message, GLib.PRIORITY_DEFAULT, cancellable,
-                    (_s: Soup.Session | null, res: Gio.AsyncResult) => {
-                        try {
-                            resolve(session.send_and_read_finish(res));
-                        } catch (e) {
-                            reject(e);
-                        }
-                    });
-            });
-        } catch (error) {
-            throw new UsageApiError((error as Error).message || String(error));
-        }
-
-        const statusCode = message.get_status() as unknown as number;
-        const body = new TextDecoder().decode(bytes.get_data() ?? new Uint8Array());
-
-        let payload: any = null;
-        try {
-            payload = body ? JSON.parse(body) : null;
-        } catch (error) {
-            if (statusCode >= 400)
-                throw new UsageApiError(`HTTP ${statusCode}: ${body.substring(0, 100)}`, {statusCode});
-            throw new UsageApiError(`Invalid JSON: ${(error as Error).message}`, {statusCode});
-        }
-
-        if (statusCode < 200 || statusCode >= 300) {
-            let messageText =
-                payload?.message || payload?.error?.message || payload?.error || `HTTP ${statusCode}`;
-            if (typeof messageText === 'object')
-                messageText = JSON.stringify(messageText);
-            throw new UsageApiError(messageText, {statusCode, payload});
-        }
-
-        return payload;
+        // No long-lived resources to release; kept for lifecycle symmetry.
     }
 
     // ---- CLI providers (codexbar) ----------------------------------------

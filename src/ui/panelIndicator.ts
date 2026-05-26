@@ -123,7 +123,7 @@ export class CodexBarIndicator extends PanelMenu.Button {
         this._clearEntries();
 
         for (const config of providers) {
-            const logo = logoForProvider(config.id, config.name);
+            const logo = logoForProvider(config);
             const gicon = logo
                 ? Gio.icon_new_for_string(`${this._opts.iconsDir}/${logo}`)
                 : null;
@@ -157,6 +157,17 @@ export class CodexBarIndicator extends PanelMenu.Button {
                 tooltipTitle: config.name,
                 tooltipLines: [{label: 'loading', value: '…'}],
             });
+        }
+
+        // With no providers, show a single default icon so the indicator stays
+        // visible and clickable (the menu offers "open settings").
+        if (providers.length === 0) {
+            const defaultIcon = new St.Icon({
+                gicon: Gio.icon_new_for_string(`${this._opts.iconsDir}/ai_usage.png`),
+                icon_size: PANEL_GLYPH_SIZE,
+                style_class: 'codexbar-default-icon',
+            });
+            this._panelBox.add_child(defaultIcon);
         }
 
         this._refreshSeparators();

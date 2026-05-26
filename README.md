@@ -17,9 +17,8 @@ src/
   prefs.ts              # per-provider settings cards (Adwaita)
   lib/
     tone.ts             # tone palette, toneFromPct, windowLabel
-    providers.ts        # provider model, defaults, logo map, pickWindows()
-    usageClient.ts      # CLI subprocess + libsoup API + JSON normalization
-    secret.ts           # keyring tokens (gi://Secret)
+    providers.ts        # provider model, icon list/map, pickWindows()
+    usageClient.ts      # CLI subprocess + JSON normalization
   ui/
     ringGlyph.ts        # concentric-ring St.DrawingArea widget
     panelIndicator.ts   # panel glyphs + dropdown + pulse + tooltip
@@ -30,7 +29,7 @@ schemas/                # gschema (compiled by `npm run schemas`)
 metadata.json, stylesheet.css
 ```
 
-The proven CLI/parsing/keyring logic is ported from `codexbar-gnome/`
+The proven CLI/parsing logic is ported from `codexbar-gnome/`
 (kept as a CLI-integration reference only).
 
 ## Build & install
@@ -60,7 +59,8 @@ journalctl -f -o cat /usr/bin/gnome-shell
 
 ## Settings
 
-Each provider is a card: Name, Command (or Codex session-cookie token stored in
-the keyring), Poll every (seconds; 0 = use the global interval), Warn at,
+Providers are added with the **Add provider** button. Each is a card: Name,
+Command (a `codexbar` CLI invocation that prints JSON usage), Icon (a bundled
+logo or none), Poll every (seconds; 0 = use the global interval), Warn at,
 Critical at, and Notify on critical. Global Refresh interval + Display mode
 (used / remaining) are at the top.

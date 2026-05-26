@@ -16,9 +16,7 @@
     "types": [
       "@girs/gjs",
       "@girs/gjs/dom",
-      "@girs/gnome-shell/ambient",
-      "@girs/secret-1/ambient",
-      "@girs/soup-3.0/ambient"
+      "@girs/gnome-shell/ambient"
     ]
   },
   "include": ["src/**/*.ts"]

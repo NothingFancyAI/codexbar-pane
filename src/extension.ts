@@ -6,7 +6,6 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {UsageClient} from './lib/usageClient.js';
-import {loadToken} from './lib/secret.js';
 import {
     ProviderConfig,
     pickWindows,
@@ -99,7 +98,7 @@ export default class CodexBarExtension extends Extension {
                 id: p.id ?? `provider-${i}`,
                 name: p.name ?? 'Unknown',
                 command: p.command ?? '',
-                useApi: !!p.useApi,
+                icon: typeof p.icon === 'string' ? p.icon : undefined,
                 pollSeconds: typeof p.pollSeconds === 'number' ? p.pollSeconds : undefined,
                 warnPct: typeof p.warnPct === 'number' ? p.warnPct : undefined,
                 criticalPct: typeof p.criticalPct === 'number' ? p.criticalPct : undefined,
@@ -151,23 +150,13 @@ export default class CodexBarExtension extends Extension {
         this._indicator.setLoading(provider.id);
 
         try {
-            let result;
-            if (provider.useApi) {
-                const token = loadToken(provider.id);
-                if (!token) {
-                    this._indicator.setError(provider.id, 'No token found in keyring');
-                    return;
-                }
-                result = await this._client.fetchApi(token, cancellable);
-            } else {
-                if (!provider.command) {
-                    this._indicator.setError(provider.id, 'No command configured');
-                    return;
-                }
-                result = await this._client.fetchCli(provider.command, cancellable);
-                if (result === null)
-                    return; // cancelled
+            if (!provider.command) {
+                this._indicator.setError(provider.id, 'No command configured');
+                return;
             }
+            const result = await this._client.fetchCli(provider.command, cancellable);
+            if (result === null)
+                return; // cancelled
 
             if (cancellable.is_cancelled())
                 return;

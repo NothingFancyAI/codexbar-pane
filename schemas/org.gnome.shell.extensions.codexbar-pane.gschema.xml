@@ -12,9 +12,9 @@
       <description>Global fallback poll interval. Per-provider pollSeconds (stored in the providers JSON) overrides this when present.</description>
     </key>
     <key name="providers" type="s">
-      <default>'[{"id": "gemini", "name": "Gemini", "command": "codexbar --provider gemini --source api --format json", "useApi": false, "warnPct": 65, "criticalPct": 85, "notify": true}]'</default>
+      <default>'[]'</default>
       <summary>JSON string of configured AI providers</summary>
-      <description>Free-form JSON array of provider objects: {id, name, command, useApi, pollSeconds?, warnPct?, criticalPct?, notify?}.</description>
+      <description>Free-form JSON array of provider objects: {id, name, command, icon?, pollSeconds?, warnPct?, criticalPct?, notify?}. Empty by default; providers are added in preferences.</description>
     </key>
     <key name="display-mode" enum="org.gnome.shell.extensions.codexbar-pane.DisplayMode">
       <default>'used'</default>
