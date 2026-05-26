@@ -52,6 +52,9 @@ interface RawWindow {
     percent: number;
     window_seconds: number;
     reset_after_seconds: number;
+    // Pre-formatted reset text supplied by the source (codexbar), used when
+    // reset_after_seconds is unavailable/zero.
+    reset_description?: string;
 }
 
 export class UsageApiError extends Error {
@@ -284,13 +287,14 @@ export class UsageClient {
 
         const mapWindow = (w: RawWindow | undefined): UsageWindow | null => w ? {
             usedPercent: w.percent * 100,
-            resetDescription: formatReset(w.reset_after_seconds),
+            resetDescription: formatReset(w.reset_after_seconds) || w.reset_description || '',
             windowSeconds: w.window_seconds,
         } : null;
 
         return {
             usage: {
-                accountEmail: payload?.email || payload?.accountEmail || undefined,
+                accountEmail: payload?.email || payload?.accountEmail
+                    || payload?.usage?.accountEmail || payload?.usage?.identity?.accountEmail || undefined,
                 updatedAt: new Date().toISOString(),
                 primary: mapWindow(sorted[0]),
                 secondary: mapWindow(sorted[1]),
@@ -320,6 +324,31 @@ export class UsageClient {
                         percent,
                         window_seconds: obj.limit_window_seconds || obj.window_seconds || obj.duration_seconds || 0,
                         reset_after_seconds: obj.reset_after_seconds || obj.reset_after || 0,
+                    });
+                }
+            }
+
+            // codexbar window shape: usedPercent (0-100), windowMinutes,
+            // resetsAt (ISO timestamp) and/or a human resetDescription.
+            if (obj.usedPercent !== undefined && (obj.windowMinutes !== undefined || obj.windowSeconds !== undefined)) {
+                const percent = parseFloat(obj.usedPercent) / 100;
+                if (!isNaN(percent)) {
+                    const windowSeconds = obj.windowSeconds !== undefined
+                        ? parseFloat(obj.windowSeconds)
+                        : parseFloat(obj.windowMinutes) * 60;
+                    let resetAfter = 0;
+                    if (obj.resetsAt) {
+                        const ms = Date.parse(obj.resetsAt) - Date.now();
+                        if (!isNaN(ms) && ms > 0)
+                            resetAfter = ms / 1000;
+                    }
+                    windows.push({
+                        used: percent,
+                        limit: 1,
+                        percent,
+                        window_seconds: windowSeconds || 0,
+                        reset_after_seconds: resetAfter,
+                        reset_description: obj.resetDescription || undefined,
                     });
                 }
             }
