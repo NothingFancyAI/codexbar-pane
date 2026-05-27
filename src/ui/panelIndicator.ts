@@ -127,12 +127,14 @@ export class CodexBarIndicator extends PanelMenu.Button {
             const gicon = logo
                 ? Gio.icon_new_for_string(`${this._opts.iconsDir}/${logo}`)
                 : null;
+            const discColor = config.color || null;
 
             const panelGlyph = new RingGlyph({
                 size: PANEL_GLYPH_SIZE,
                 onDark: true,
                 gicon,
                 letter: config.name,
+                discColor,
                 reactive: true,
             });
             this._wireTooltip(config.id, panelGlyph);
@@ -142,6 +144,7 @@ export class CodexBarIndicator extends PanelMenu.Button {
                 name: config.name,
                 gicon: logo ? Gio.icon_new_for_string(`${this._opts.iconsDir}/${logo}`) : null,
                 letter: config.name,
+                discColor,
             });
             this._rowsBox.add_child(row.actor);
 

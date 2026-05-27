@@ -8,6 +8,9 @@ export interface ProviderConfig {
     command: string;
     // Bundled icon filename (see AVAILABLE_ICONS); '' / undefined = letter glyph.
     icon?: string;
+    // Account accent color "#rrggbb" — drawn as a disc behind the glyph icon
+    // so multiple accounts of the same provider stay distinguishable.
+    color?: string;
     // Optional per-provider overrides (free-form, stored in the providers JSON).
     pollSeconds?: number;
     warnPct?: number;
@@ -36,6 +39,12 @@ export const AVAILABLE_ICONS: IconOption[] = [
 ];
 
 const ICON_FILES = new Set(AVAILABLE_ICONS.map(i => i.file));
+
+// Accent colors cycled through when a new provider card is created.
+export const DEFAULT_COLORS = [
+    '#3b82f6', '#a855f7', '#10b981', '#ef4444',
+    '#f59e0b', '#06b6d4', '#ec4899', '#84cc16',
+];
 
 // Fallback id/name → logo mapping for providers saved without an explicit icon.
 const LOGO_BY_ID: Record<string, string> = {
