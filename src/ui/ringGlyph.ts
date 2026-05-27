@@ -7,7 +7,7 @@ import St from 'gi://St';
 import Gio from 'gi://Gio';
 import Cairo from 'gi://cairo';
 
-import {Tone, toneRgba, TRACK_RGBA} from '../lib/tone.js';
+import {Tone, toneRgba, hexToRgba, TRACK_RGBA} from '../lib/tone.js';
 
 // GJS implements cairo methods natively; @girs types the context only as a
 // foreign struct, so we describe the subset we use here.
@@ -17,6 +17,7 @@ interface CairoContext {
     setSourceRGBA(r: number, g: number, b: number, a: number): void;
     arc(cx: number, cy: number, r: number, angle1: number, angle2: number): void;
     stroke(): void;
+    fill(): void;
     $dispose(): void;
 }
 
@@ -30,6 +31,7 @@ export interface RingGlyphOptions {
     onDark?: boolean;     // panel (dark) vs dropdown — affects track alpha
     gicon?: Gio.Icon | null;
     letter?: string;      // fallback identity when no logo
+    discColor?: string | null; // account accent disc "#rrggbb" behind the icon
     reactive?: boolean;   // enable hover events (panel glyphs)
 }
 
@@ -42,6 +44,7 @@ export class RingGlyph extends St.Widget {
     }
 
     private _size: number;
+    private _discColor: string | null;
     private _outer: RingValue | null = null;
     private _inner: RingValue | null = null;
     private _area!: St.DrawingArea;
@@ -63,6 +66,7 @@ export class RingGlyph extends St.Widget {
         });
 
         this._size = size;
+        this._discColor = opts.discColor ?? null;
 
         const trackAlpha = opts.onDark === false ? 0.12 : TRACK_RGBA[3];
 
@@ -111,6 +115,15 @@ export class RingGlyph extends St.Widget {
         const [w, h] = this._area.get_surface_size();
         const cx = w / 2;
         const cy = h / 2;
+
+        // Account accent disc behind the icon (identity color). Sits inside the
+        // inner ring so it never collides with the severity arcs.
+        if (this._discColor) {
+            const [dr, dg, db] = hexToRgba(this._discColor);
+            cr.setSourceRGBA(dr, dg, db, 1);
+            cr.arc(cx, cy, this._size * 0.5, 0, 2 * Math.PI);
+            cr.fill();
+        }
 
         // Outer ring (5-hour) — always draw the track so the glyph reads even
         // before data arrives.

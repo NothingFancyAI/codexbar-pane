@@ -19,6 +19,7 @@ export interface ProviderRowOptions {
     name: string;
     gicon?: Gio.Icon | null;
     letter?: string;
+    discColor?: string | null;
 }
 
 const PRIMARY_BAR_W = 150;
@@ -54,6 +55,7 @@ export class ProviderRow {
             onDark: false,
             gicon: opts.gicon ?? null,
             letter: opts.letter ?? opts.name,
+            discColor: opts.discColor ?? null,
         });
         const glyphWrap = new St.Bin({
             style_class: 'codexbar-row-glyph',

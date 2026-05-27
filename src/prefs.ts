@@ -1,13 +1,16 @@
 // CodexBar preferences — global settings + per-provider cards
-// (Name, Command, Poll, Warn at, Critical at, Notify).
+// (Name, Command, Icon, Color, Poll, Warn at, Critical at, Notify). The accent
+// color is drawn as a disc behind the glyph so accounts stay distinguishable.
 
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
+import Gdk from 'gi://Gdk';
 import Adw from 'gi://Adw';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 import {
     AVAILABLE_ICONS,
+    DEFAULT_COLORS,
     DEFAULT_WARN_PCT,
     DEFAULT_CRITICAL_PCT,
 } from './lib/providers.js';
@@ -17,6 +20,7 @@ interface StoredProvider {
     name: string;
     command: string;
     icon?: string;
+    color?: string;
     pollSeconds?: number;
     warnPct?: number;
     criticalPct?: number;
@@ -29,6 +33,7 @@ interface ProviderSeed {
     name: string;
     defaultCommand: string;
     icon?: string;
+    color?: string;
 }
 
 interface ProviderRowRefs {
@@ -37,10 +42,23 @@ interface ProviderRowRefs {
     nameEntry: Adw.EntryRow;
     commandEntry: Adw.EntryRow;
     getIcon: () => string;
+    colorButton: Gtk.ColorButton;
     pollSpin: Adw.SpinRow;
     warnSpin: Adw.SpinRow;
     criticalSpin: Adw.SpinRow;
     notifySwitch: Adw.SwitchRow;
+}
+
+function rgbaToHex(rgba: Gdk.RGBA): string {
+    const to255 = (v: number) => Math.round(v * 255).toString(16).padStart(2, '0');
+    return `#${to255(rgba.red)}${to255(rgba.green)}${to255(rgba.blue)}`;
+}
+
+function hexToRgba(hex: string): Gdk.RGBA {
+    const rgba = new Gdk.RGBA();
+    if (!rgba.parse(hex))
+        rgba.parse('#3b82f6');
+    return rgba;
 }
 
 // Icon-selector model: "None" plus each bundled icon.
@@ -125,6 +143,7 @@ export default class CodexBarPreferences extends ExtensionPreferences {
                     name: r.nameEntry.get_text(),
                     command: r.commandEntry.get_text(),
                     icon: r.getIcon() || undefined,
+                    color: rgbaToHex(r.colorButton.get_rgba()),
                     pollSeconds: Math.round(r.pollSpin.get_value()) || undefined,
                     warnPct: Math.round(r.warnSpin.get_value()),
                     criticalPct: Math.round(r.criticalSpin.get_value()),
@@ -187,6 +206,22 @@ export default class CodexBarPreferences extends ExtensionPreferences {
             row.add_row(iconRow);
             const getIcon = () => ICON_CHOICES[iconRow.get_selected()] ?? '';
 
+            // Color (account accent disc behind the icon).
+            const initialColor = stored?.color ?? info.color ?? DEFAULT_COLORS[0];
+            const colorButton = new Gtk.ColorButton({
+                rgba: hexToRgba(initialColor),
+                use_alpha: false,
+                valign: Gtk.Align.CENTER,
+            });
+            colorButton.connect('color-set', saveProviders);
+            const colorRow = new Adw.ActionRow({
+                title: _('Color'),
+                subtitle: _('Accent disc behind the icon (tells accounts apart)'),
+            });
+            colorRow.add_suffix(colorButton);
+            colorRow.set_activatable_widget(colorButton);
+            row.add_row(colorRow);
+
             // Poll every (seconds; 0 = use global).
             const pollSpin = new Adw.SpinRow({
                 title: _('Poll every (seconds)'),
@@ -246,6 +281,7 @@ export default class CodexBarPreferences extends ExtensionPreferences {
                 nameEntry,
                 commandEntry,
                 getIcon,
+                colorButton,
                 pollSpin,
                 warnSpin,
                 criticalSpin,
@@ -254,14 +290,20 @@ export default class CodexBarPreferences extends ExtensionPreferences {
         };
 
         // Providers stored in settings (all user-added; no built-in presets).
-        for (const p of active) {
+        active.forEach((p, index) => {
             const refs = makeCard(
-                {id: p.id, name: p.name, defaultCommand: p.command ?? '', icon: p.icon},
+                {
+                    id: p.id,
+                    name: p.name,
+                    defaultCommand: p.command ?? '',
+                    icon: p.icon,
+                    color: p.color ?? DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+                },
                 p,
             );
             rows.push(refs);
             group.add(refs.row);
-        }
+        });
 
         // Add a provider.
         const addRow = new Adw.ActionRow({
@@ -300,6 +342,7 @@ export default class CodexBarPreferences extends ExtensionPreferences {
                     id: `custom-${Date.now()}`,
                     name,
                     defaultCommand: cmd,
+                    color: DEFAULT_COLORS[rows.length % DEFAULT_COLORS.length],
                 };
                 const refs = makeCard(info, {id: info.id, name, command: cmd});
                 rows.push(refs);
