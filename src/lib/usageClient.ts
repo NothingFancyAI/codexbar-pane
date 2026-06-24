@@ -240,9 +240,35 @@ export class UsageClient {
 
         collect(payload);
 
-        // De-duplicate windows by (window_seconds, percent).
-        return windows.filter((w, index, self) =>
-            index === self.findIndex(t =>
-                t.window_seconds === w.window_seconds && t.percent === w.percent));
+        // Collapse windows that share a duration, keeping the highest-percent
+        // reading. A single source (e.g. codexbar/Claude) can emit a real
+        // weekly window alongside a phantom duplicate at 0% used; without this
+        // the duplicate flakily displaces the real value, since the source's
+        // JSON key order is non-deterministic and downstream sorting is stable.
+        const byDuration = new Map<number, RawWindow>();
+        const unknownDuration: RawWindow[] = [];
+        for (const w of windows) {
+            // Windows without a known duration can't be proven equivalent, so
+            // keep them as-is (deduped by percent) rather than collapsing.
+            if (!w.window_seconds) {
+                if (!unknownDuration.some(t => t.percent === w.percent))
+                    unknownDuration.push(w);
+                continue;
+            }
+            const existing = byDuration.get(w.window_seconds);
+            if (!existing) {
+                byDuration.set(w.window_seconds, w);
+                continue;
+            }
+            // Prefer the higher utilization; on a tie keep the one carrying
+            // reset metadata so we don't lose the human-readable reset text.
+            const better = w.percent > existing.percent
+                || (w.percent === existing.percent
+                    && (w.reset_after_seconds || w.reset_description)
+                    && !(existing.reset_after_seconds || existing.reset_description));
+            if (better)
+                byDuration.set(w.window_seconds, w);
+        }
+        return [...byDuration.values(), ...unknownDuration];
     }
 }
