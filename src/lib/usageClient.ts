@@ -130,24 +130,12 @@ export class UsageClient {
     // ---- normalization ----------------------------------------------------
 
     normalizeSummary(payload: any): NormalizedUsage {
-        const windows = this.extractWindows(payload);
-        const sorted = windows.sort((a, b) => (a.window_seconds || 0) - (b.window_seconds || 0));
-
-        const formatReset = (seconds: number): string => {
-            if (!seconds)
-                return '';
-            if (seconds < 60)
-                return `Resets in ${Math.round(seconds)}s`;
-            if (seconds < 3600)
-                return `Resets in ${Math.round(seconds / 60)}m`;
-            if (seconds < 86400)
-                return `Resets in ${Math.round(seconds / 3600)}h`;
-            return `Resets in ${Math.round(seconds / 86400)}d`;
-        };
+        const ordered = this.labeledWindows(payload) ?? this.extractWindows(payload)
+            .sort((a, b) => (a.window_seconds || 0) - (b.window_seconds || 0));
 
         const mapWindow = (w: RawWindow | undefined): UsageWindow | null => w ? {
             usedPercent: w.percent * 100,
-            resetDescription: formatReset(w.reset_after_seconds) || w.reset_description || '',
+            resetDescription: this._formatReset(w.reset_after_seconds) || w.reset_description || '',
             windowSeconds: w.window_seconds,
         } : null;
 
@@ -156,11 +144,80 @@ export class UsageClient {
                 accountEmail: payload?.email || payload?.accountEmail
                     || payload?.usage?.accountEmail || payload?.usage?.identity?.accountEmail || undefined,
                 updatedAt: new Date().toISOString(),
-                primary: mapWindow(sorted[0]),
-                secondary: mapWindow(sorted[1]),
-                tertiary: mapWindow(sorted[2]),
-                quaternary: mapWindow(sorted[3]),
+                primary: mapWindow(ordered[0]),
+                secondary: mapWindow(ordered[1]),
+                tertiary: mapWindow(ordered[2]),
+                quaternary: mapWindow(ordered[3]),
             },
+        };
+    }
+
+    private _formatReset(seconds: number): string {
+        if (!seconds)
+            return '';
+        if (seconds < 60)
+            return `Resets in ${Math.round(seconds)}s`;
+        if (seconds < 3600)
+            return `Resets in ${Math.round(seconds / 60)}m`;
+        if (seconds < 86400)
+            return `Resets in ${Math.round(seconds / 3600)}h`;
+        return `Resets in ${Math.round(seconds / 86400)}d`;
+    }
+
+    /**
+     * Read the rate-limit windows codexbar already labels for us, in its order.
+     *
+     * Returns null when the payload carries no labeled windows, leaving the
+     * caller to fall back on recursive discovery. Preferring the labels matters
+     * because discovery matches on shape alone: Claude's `providerCost` (a
+     * monthly dollar cap) is a used/limit pair with no duration, so it sorts
+     * ahead of every real window and lands in the 5-hour slot. Non-rate-limit
+     * figures like that, and the zero-use `extraRateWindows` entries, are not
+     * usage windows and stay out of the slots entirely.
+     */
+    labeledWindows(payload: any): RawWindow[] | null {
+        const usage = payload?.usage ?? payload;
+        if (!usage || typeof usage !== 'object')
+            return null;
+
+        const windows: RawWindow[] = [];
+        for (const key of ['primary', 'secondary', 'tertiary', 'quaternary']) {
+            const w = this._parseLabeledWindow(usage[key]);
+            if (w)
+                windows.push(w);
+        }
+        return windows.length ? windows : null;
+    }
+
+    /** Parse one codexbar window: usedPercent (0-100) plus a window duration. */
+    private _parseLabeledWindow(obj: any): RawWindow | null {
+        if (!obj || typeof obj !== 'object' || obj.usedPercent === undefined)
+            return null;
+
+        const percent = parseFloat(obj.usedPercent) / 100;
+        if (isNaN(percent))
+            return null;
+
+        const windowSeconds = obj.windowSeconds !== undefined
+            ? parseFloat(obj.windowSeconds)
+            : parseFloat(obj.windowMinutes) * 60;
+        if (isNaN(windowSeconds))
+            return null;
+
+        let resetAfter = 0;
+        if (obj.resetsAt) {
+            const ms = Date.parse(obj.resetsAt) - Date.now();
+            if (!isNaN(ms) && ms > 0)
+                resetAfter = ms / 1000;
+        }
+
+        return {
+            used: percent,
+            limit: 1,
+            percent,
+            window_seconds: windowSeconds,
+            reset_after_seconds: resetAfter,
+            reset_description: obj.resetDescription || undefined,
         };
     }
 
