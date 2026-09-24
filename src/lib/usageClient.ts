@@ -102,6 +102,14 @@ export class UsageClient {
                 throw new UsageApiError(`JSON error: ${(e as Error).message}`);
             }
             const payload = Array.isArray(parsed) ? parsed[0] : parsed;
+            // codexbar reports failures (e.g. an expired token) as JSON with an
+            // `error` object instead of usage; surface it rather than letting
+            // normalization find no windows and report "No usage data".
+            if (payload?.error) {
+                const message = String(payload.error.message || 'CLI reported an error.');
+                console.warn(`codexbar-pane: ${message}`);
+                throw new UsageApiError(this._summarizeCliError(message));
+            }
             return this.normalizeSummary(payload);
         }
 
@@ -110,6 +118,19 @@ export class UsageClient {
         if (trimmedOut)
             throw new UsageApiError('Output is not valid JSON.');
         throw new UsageApiError('No output from command.');
+    }
+
+    /**
+     * Shorten a codexbar error for the one-line status label. Upstream HTTP
+     * failures embed the response body, whose own `"message"` (e.g. "Provided
+     * authentication token is expired.") is the useful part; pair it with the
+     * leading summary ("Codex connection failed") instead of the URL and body.
+     */
+    private _summarizeCliError(message: string): string {
+        const inner = message.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1];
+        if (inner)
+            return `${message.split(':')[0]}: ${inner.replace(/\\(.)/g, '$1')}`;
+        return message.split('\n')[0];
     }
 
     /** Substitute a bare "codexbar" prefix with the first existing absolute path. */
