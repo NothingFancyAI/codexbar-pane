@@ -1,8 +1,10 @@
-# CodexBar Pane — GNOME Shell extension tasks
+# CodexBar Pane — GNOME Shell extension + Waybar module tasks
 # Run `just` to list recipes.
 
 uuid := "codexbar-pane@nothingfancy.ai"
 ext-dir := env_var('HOME') / ".local/share/gnome-shell/extensions" / uuid
+waybar-dir := env_var('HOME') / ".local/share/codexbar-pane"
+waybar-bin := env_var('HOME') / ".local/bin/codexbar-waybar"
 
 # List available recipes
 default:
@@ -71,3 +73,18 @@ restart-shell:
 reload: deploy
     @echo "Reload GNOME Shell (Wayland: log out/in · X11: Alt+F2 → r),"
     @echo "then: just enable"
+
+# Build and install the Waybar backend as `codexbar-waybar` on PATH
+waybar-install: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm -rf "{{waybar-dir}}"
+    mkdir -p "{{waybar-dir}}" "$(dirname "{{waybar-bin}}")"
+    cp -r dist/lib dist/waybar.js "{{waybar-dir}}/"
+    printf '#!/bin/sh\nexec gjs -m "%s/waybar.js" "$@"\n' "{{waybar-dir}}" > "{{waybar-bin}}"
+    chmod 0755 "{{waybar-bin}}"
+    echo "Installed {{waybar-bin}}"
+
+# Remove the installed Waybar backend
+waybar-uninstall:
+    rm -rf "{{waybar-dir}}" "{{waybar-bin}}"

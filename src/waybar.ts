@@ -1,0 +1,145 @@
+// Waybar custom-module backend: `gjs -m waybar.js <provider-id>` prints one
+// Waybar JSON line for that provider — 5-hour and weekly percentages as
+// tone-colored Pango text, a bar tooltip, and a severity class. Providers come
+// from $XDG_CONFIG_HOME/codexbar-pane/providers.json (the same shape as the
+// extension's `providers` setting).
+
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import System from 'system';
+
+import {UsageClient} from './lib/usageClient.js';
+import type {UsageWindow} from './lib/usageClient.js';
+import {DEFAULT_CRITICAL_PCT, DEFAULT_WARN_PCT, pickWindows} from './lib/providers.js';
+import type {ProviderConfig} from './lib/providers.js';
+import {Tone, toneFromPct, windowLabel} from './lib/tone.js';
+
+// Brighter than the extension's ring palette: these are text on a near-black
+// bar, so each clears 4.5:1 contrast against it.
+const TEXT_HEX: Record<Tone, string> = {
+    ok: '#8ff0a4',
+    warn: '#f6d32d',
+    bad: '#ff7b63',
+};
+
+const TONE_CLASS: Record<Tone, string> = {ok: 'ok', warn: 'warn', bad: 'critical'};
+const TONE_RANK: Record<Tone, number> = {ok: 0, warn: 1, bad: 2};
+
+const BAR_CELLS = 10;
+
+interface WaybarOutput {
+    text: string;
+    tooltip: string;
+    class: string[];
+    percentage?: number;
+}
+
+const CONFIG_PATH = GLib.build_filenamev([GLib.get_user_config_dir(), 'codexbar-pane', 'providers.json']);
+const STATE_DIR = GLib.build_filenamev([GLib.get_user_runtime_dir(), 'codexbar-pane']);
+
+function escape(text: string): string {
+    return GLib.markup_escape_text(text, -1);
+}
+
+function span(color: string | undefined, text: string): string {
+    return color ? `<span foreground="${color}">${escape(text)}</span>` : escape(text);
+}
+
+function loadProvider(id: string): ProviderConfig {
+    const [, bytes] = GLib.file_get_contents(CONFIG_PATH);
+    const providers = JSON.parse(new TextDecoder().decode(bytes)) as ProviderConfig[];
+    const provider = providers.find(p => p.id === id);
+    if (!provider)
+        throw new Error(`No provider "${id}" in ${CONFIG_PATH}`);
+    return provider;
+}
+
+function badge(provider: ProviderConfig): string {
+    return span(provider.color, provider.label || provider.name.charAt(0));
+}
+
+function bar(pct: number): string {
+    const filled = Math.round(Math.min(Math.max(pct, 0), 100) / 100 * BAR_CELLS);
+    return '█'.repeat(filled) + '░'.repeat(BAR_CELLS - filled);
+}
+
+function tooltipLine(w: UsageWindow, tone: Tone): string {
+    const label = windowLabel(w.windowSeconds).padEnd(6);
+    const pct = `${Math.round(w.usedPercent)}%`.padStart(4);
+    const line = `<tt>${escape(label)} ${span(TEXT_HEX[tone], bar(w.usedPercent))} ${escape(pct)}</tt>`;
+    return w.resetDescription ? `${line}  ${escape(w.resetDescription)}` : line;
+}
+
+/** Notify once per climb into critical; the marker file clears on recovery. */
+function trackCritical(provider: ProviderConfig, critical: boolean, detail: string): void {
+    const marker = Gio.File.new_for_path(GLib.build_filenamev([STATE_DIR, `${provider.id}.critical`]));
+    if (!critical) {
+        try {
+            marker.delete(null);
+        } catch {
+            // Already clear.
+        }
+        return;
+    }
+    if (marker.query_exists(null) || !provider.notify)
+        return;
+    GLib.mkdir_with_parents(STATE_DIR, 0o700);
+    marker.replace_contents(new TextEncoder().encode(detail), null, false, Gio.FileCreateFlags.NONE, null);
+    Gio.Subprocess.new(
+        ['notify-send', '--app-name=CodexBar', '--urgency=critical', provider.name, detail],
+        Gio.SubprocessFlags.NONE,
+    );
+}
+
+function errorOutput(provider: ProviderConfig | null, message: string): WaybarOutput {
+    const name = provider ? `<b>${escape(provider.name)}</b>\n` : '';
+    return {
+        text: `${provider ? badge(provider) : '?'}${span(TEXT_HEX.bad, '!')}`,
+        tooltip: `${name}${escape(message)}`,
+        class: ['error'],
+    };
+}
+
+async function render(id: string): Promise<WaybarOutput> {
+    let provider: ProviderConfig | null = null;
+    try {
+        provider = loadProvider(id);
+        const result = await new UsageClient().fetchCli(provider.command, new Gio.Cancellable());
+        const {short, week} = pickWindows(result?.usage);
+        if (!short)
+            return errorOutput(provider, 'No usage data');
+
+        const warn = provider.warnPct ?? DEFAULT_WARN_PCT;
+        const critical = provider.criticalPct ?? DEFAULT_CRITICAL_PCT;
+        const windows = [short, week].filter((w): w is UsageWindow => w !== null);
+        const tones = windows.map(w => toneFromPct(w.usedPercent, warn, critical));
+        const worst = tones.reduce((a, b) => (TONE_RANK[b] > TONE_RANK[a] ? b : a));
+
+        const numbers = windows.map((w, i) => span(TEXT_HEX[tones[i]], `${Math.round(w.usedPercent)}`));
+        const header = `<b>${escape(provider.name)}</b>${
+            result?.usage.accountEmail ? `  ${escape(result.usage.accountEmail)}` : ''}`;
+
+        const hot = windows.filter((_, i) => tones[i] === 'bad')
+            .map(w => `${windowLabel(w.windowSeconds).toLowerCase()} window at ${Math.round(w.usedPercent)}%`);
+        trackCritical(provider, hot.length > 0, hot.join(', '));
+
+        return {
+            text: `${badge(provider)} ${numbers.join('<span alpha="60%">·</span>')}`,
+            tooltip: [header, ...windows.map((w, i) => tooltipLine(w, tones[i]))].join('\n'),
+            class: [TONE_CLASS[worst]],
+            percentage: Math.round(short.usedPercent),
+        };
+    } catch (e) {
+        return errorOutput(provider, (e as Error)?.message || String(e));
+    }
+}
+
+const [id] = System.programArgs;
+if (!id) {
+    printerr('usage: codexbar-waybar <provider-id>');
+    System.exit(2);
+}
+// \u-escape non-ASCII so the line survives print() under any locale; Waybar
+// often runs without LANG, where GJS would write the bar glyphs as '?'.
+print(JSON.stringify(await render(id))
+    .replace(/[^\x00-\x7f]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`));

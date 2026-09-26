@@ -1,4 +1,4 @@
-# CodexBar Pane — GNOME Shell extension (TypeScript)
+# CodexBar Pane — GNOME Shell extension + Waybar module (TypeScript)
 
 AI subscription usage in the GNOME panel, "Concentric rings" design: every
 provider is a ring glyph in the top bar — a thick **outer ring = the ~5-hour
@@ -14,6 +14,7 @@ UUID `codexbar-pane@nothingfancy.ai` · GNOME Shell 45–50.
 ```
 src/
   extension.ts          # enable()/disable(), refresh loop, notifications
+  waybar.ts             # Waybar custom-module backend (gjs, one provider per call)
   prefs.ts              # per-provider settings cards (Adwaita)
   lib/
     tone.ts             # tone palette, toneFromPct, windowLabel
@@ -64,3 +65,31 @@ Command (a `codexbar` CLI invocation that prints JSON usage), Icon (a bundled
 logo or none), Poll every (seconds; 0 = use the global interval), Warn at,
 Critical at, and Notify on critical. Global Refresh interval + Display mode
 (used / remaining) are at the top.
+
+## Waybar (Hyprland and other wlroots sessions)
+
+GNOME Shell extensions only load inside GNOME Shell. Elsewhere the same
+`lib/` code runs under `gjs` as a Waybar custom-module backend:
+
+```sh
+just waybar-install          # build → ~/.local/share/codexbar-pane + ~/.local/bin/codexbar-waybar
+codexbar-waybar claude | jq  # one Waybar JSON line for provider id "claude"
+```
+
+Providers are read from `$XDG_CONFIG_HOME/codexbar-pane/providers.json` — an
+array in the same shape as the extension's `providers` setting, plus an
+optional `label` (the bar badge; default = first letter of `name`). Each
+provider is its own `custom/*` module with `"return-type": "json"`:
+
+- `text` — badge in the account color, then the 5-hour and weekly used
+  percentages, each colored by severity.
+- `tooltip` — one bar per window with its reset time, plus the account email.
+- `class` — `ok` / `warn` / `critical` (worst window) or `error`; style
+  `critical` to pulse.
+- `percentage` — the 5-hour window.
+
+Entering critical sends one `notify-send` per provider (when `notify` is set);
+the marker in `$XDG_RUNTIME_DIR/codexbar-pane/` clears once usage drops.
+
+On the operator's workstations the provider list and the Waybar modules are
+rendered by rookery's `workstation-hyprland` role.

@@ -5,6 +5,8 @@ import type {Usage, UsageWindow} from './usageClient.js';
 export interface ProviderConfig {
     id: string;
     name: string;
+    // Short text badge for the Waybar module; '' / undefined = first letter.
+    label?: string;
     command: string;
     // Bundled icon filename (see AVAILABLE_ICONS); '' / undefined = letter glyph.
     icon?: string;
